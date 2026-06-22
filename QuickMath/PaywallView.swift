@@ -3,108 +3,126 @@ import SwiftUI
 struct PaywallView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    @State private var working = false
-    @State private var restoreMessage: String?
 
-    private let benefits: [(String, String, String)] = [
-        ("calendar", "Daily grid archive", "Replay every past day's logic grid, all the way back."),
-        ("square.grid.3x3.fill", "Bigger grids", "Step up to tougher 5x5 and 6x6 deduction puzzles."),
-        ("brain.head.profile", "An expert grid daily", "A second, harder hand-made grid every single day."),
-        ("lightbulb.fill", "Hints & themes", "Nudge tokens when you're stuck, plus board themes.")
+    private let benefits: [String] = [
+        "Unlimited lifetime gratitude wall with search",
+        "Fresh themed prompt packs added monthly",
+        "On-this-day resurfacing and daily reminder"
     ]
 
     var body: some View {
-        ZStack {
-            QMBackground()
-            ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 40, weight: .semibold))
-                            .foregroundStyle(Color.qmAccent)
-                        Text("Lattice Pro").font(.largeTitle.weight(.heavy))
-                        Text("$0.99 / month. Auto-renews until you cancel.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 28)
+        NavigationStack {
+            ZStack {
+                QMBackground()
+                ScrollView {
+                    VStack(spacing: 28) {
+                        // Icon area
+                        ZStack {
+                            Circle()
+                                .fill(Color.qmCard)
+                                .frame(width: 88, height: 88)
+                            Image(systemName: "hand.raised.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 42, height: 42)
+                                .foregroundStyle(Color.qmAccent)
+                        }
+                        .padding(.top, 8)
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        ForEach(benefits, id: \.0) { item in
-                            HStack(alignment: .top, spacing: 14) {
-                                Image(systemName: item.0)
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(Color.qmAccent)
-                                    .frame(width: 28)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.1).font(.headline)
-                                    Text(item.2).font(.subheadline).foregroundStyle(.secondary)
+                        // Title + subtitle
+                        VStack(spacing: 8) {
+                            Text("Gratile Pro")
+                                .font(.title.weight(.bold))
+                            Text("$0.99 / month. Auto-renews until you cancel.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        // Benefits
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(benefits, id: \.self) { benefit in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(Color.qmAccent)
+                                        .font(.body)
+                                    Text(benefit)
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
                                 }
-                                Spacer(minLength: 0)
                             }
                         }
-                    }
-                    .qmCard()
-                    .padding(.horizontal)
+                        .qmCard()
+                        .padding(.horizontal)
 
-                    VStack(spacing: 12) {
-                        Button { Task { await buy() } } label: {
-                            HStack {
-                                if working { ProgressView().tint(.white) }
-                                Text(working ? "Unlocking…" : "Unlock Lattice Pro · \(store.displayPrice)")
-                                    .font(.headline)
+                        // Unlock button
+                        Button {
+                            Task { await store.purchase() }
+                            Haptics.tap()
+                        } label: {
+                            if store.purchaseInFlight {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.white)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text("Unlock Gratile Pro — \(store.displayPrice)/mo")
+                                    .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
                         .prominentButton()
-                        .accessibilityIdentifier("paywall-unlock")
-                        .disabled(working)
+                        .padding(.horizontal)
+                        .disabled(store.purchaseInFlight)
 
-                        Button("Restore Purchase") { Task { await restore() } }
-                            .font(.subheadline).tint(.secondary)
+                        // Restore
+                        Button("Restore Purchase") {
+                            Task { await store.restore() }
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(Color.qmAccent)
 
-                        if let restoreMessage {
-                            Text(restoreMessage).font(.footnote).foregroundStyle(.secondary)
+                        // Manage subscription
+                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                            Link("Manage Subscription", destination: url)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
 
-                        Text("Lattice Pro is a $0.99/month subscription that renews automatically unless canceled at least 24 hours before the period ends. Payment is charged to your Apple Account; manage or cancel anytime in Settings.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).padding(.top, 4)
+                        // Disclosure
+                        VStack(spacing: 8) {
+                            Text("Gratile Pro is a $0.99/month auto-renewable subscription. Your subscription will automatically renew at the same price unless you cancel at least 24 hours before the end of the current period. You can manage or cancel your subscription at any time in your App Store account settings.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
 
-                        HStack(spacing: 16) {
-                            Link("Terms of Use", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
-                            Link("Privacy Policy", destination: URL(string: "https://shimondeitel.github.io/lattice-site/privacy.html")!)
+                            HStack(spacing: 16) {
+                                if let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/") {
+                                    Link("Terms of Service", destination: termsURL)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.qmAccent)
+                                }
+                                if let privacyURL = URL(string: "https://shimondeitel.github.io/gratile-site/privacy.html") {
+                                    Link("Privacy Policy", destination: privacyURL)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.qmAccent)
+                                }
+                            }
                         }
-                        .font(.footnote).tint(Color.qmAccent)
-
-                        Text("Lattice never tracks you. Your progress stays on your device.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).padding(.top, 4)
+                        .padding(.horizontal)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal).padding(.bottom, 30)
                 }
             }
-        }
-        .overlay(alignment: .topTrailing) {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill").font(.title2)
-                    .foregroundStyle(.secondary).padding()
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
             }
-            .accessibilityIdentifier("paywall-close")
+            .onChange(of: store.isPro) { _, newValue in
+                if newValue { dismiss() }
+            }
         }
-        .onChange(of: store.isPro) { _, newValue in if newValue { dismiss() } }
-    }
-
-    private func buy() async {
-        working = true
-        let ok = await store.purchase()
-        working = false
-        if ok { Haptics.success(); dismiss() }
-    }
-
-    private func restore() async {
-        await store.restore()
-        if store.isPro { Haptics.success(); dismiss() }
-        else { restoreMessage = "No previous purchase found on this Apple ID." }
     }
 }

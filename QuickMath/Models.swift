@@ -1,141 +1,169 @@
-import Foundation
+import SwiftUI
 import SwiftData
 
-/// One logic-grid puzzle: people (rows) matched one-to-one to an ordered attribute (cols),
-/// pinned down by a set of clues. `solution[r]` is the column index for row r.
-struct Puzzle: Codable, Identifiable, Equatable {
-    let id: Int
-    let size: Int
-    let rowCategory: String
-    let colCategory: String
-    let rows: [String]
-    let cols: [String]
-    let solution: [Int]
-    let clues: [String]
-}
+// MARK: - SwiftData models
 
-/// The bundled puzzle bank. Daily puzzles are size 5; expert (Pro) are size 6. The puzzle for a
-/// given day is chosen deterministically from the date, so everyone gets the same one.
-enum PuzzleBank {
-    private struct Bank: Codable { let version: Int; let puzzles: [Puzzle] }
-
-    static let all: [Puzzle] = load()
-    static var daily: [Puzzle] { all.filter { $0.size == 5 } }
-    static var expert: [Puzzle] { all.filter { $0.size == 6 } }
-
-    private static func load() -> [Puzzle] {
-        guard let url = Bundle.main.url(forResource: "lattice_puzzles", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let bank = try? JSONDecoder().decode(Bank.self, from: data) else { return [] }
-        return bank.puzzles
-    }
-
-    /// Days since the epoch, used as a stable per-day index.
-    private static func epochDay(_ date: Date) -> Int {
-        let cal = Calendar.current
-        let start = cal.startOfDay(for: date)
-        return Int((start.timeIntervalSince1970 / 86_400).rounded(.down))
-    }
-
-    static func index(for date: Date, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        let d = epochDay(date)
-        return ((d % count) + count) % count
-    }
-
-    static func today(for date: Date = .now) -> Puzzle? {
-        let d = daily; guard !d.isEmpty else { return nil }
-        return d[index(for: date, count: d.count)]
-    }
-
-    static func expertToday(for date: Date = .now) -> Puzzle? {
-        let e = expert; guard !e.isEmpty else { return nil }
-        return e[index(for: date, count: e.count)]
-    }
-
-    /// The daily puzzle for a day N days back (Pro archive).
-    static func daily(daysAgo: Int, from date: Date = .now) -> Puzzle? {
-        let d = daily; guard !d.isEmpty else { return nil }
-        let day = Calendar.current.date(byAdding: .day, value: -daysAgo, to: date) ?? date
-        return d[index(for: day, count: d.count)]
-    }
-
-    static func dateKey(for date: Date = .now) -> String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1)
-    }
-}
-
-/// A single cell's mark in the grid.
-enum Mark: Int { case blank = 0, yes, no }
-
-/// Mutable state for one play session: an n×n grid of marks plus solve detection.
-final class GridState: ObservableObject {
-    let puzzle: Puzzle
-    @Published var marks: [[Mark]]
-    @Published var hintedRow: Int? = nil
-
-    init(_ p: Puzzle) {
-        puzzle = p
-        marks = Array(repeating: Array(repeating: .blank, count: p.size), count: p.size)
-    }
-
-    /// Tap cycles blank → yes → no → blank. Placing a YES auto-marks the rest of that row and
-    /// column NO (one-to-one matching), the way players naturally fill a logic grid.
-    func cycle(_ r: Int, _ c: Int) {
-        let n = puzzle.size
-        let next: Mark = marks[r][c] == .blank ? .yes : (marks[r][c] == .yes ? .no : .blank)
-        marks[r][c] = next
-        if next == .yes {
-            for cc in 0..<n where cc != c && marks[r][cc] != .no { marks[r][cc] = .no }
-            for rr in 0..<n where rr != r && marks[rr][c] != .no { marks[rr][c] = .no }
-        }
-        objectWillChange.send()
-    }
-
-    /// Reveal one correct cell the player hasn't placed yet (Pro hint).
-    func revealHint() {
-        let n = puzzle.size
-        for r in 0..<n where marks[r][puzzle.solution[r]] != .yes {
-            for c in 0..<n { marks[r][c] = (c == puzzle.solution[r]) ? .yes : .no }
-            hintedRow = r
-            objectWillChange.send()
-            return
-        }
-    }
-
-    var placedCount: Int {
-        (0..<puzzle.size).reduce(0) { acc, r in
-            acc + ((0..<puzzle.size).contains { marks[r][$0] == .yes } ? 1 : 0)
-        }
-    }
-
-    var isComplete: Bool { placedCount == puzzle.size }
-
-    var isSolved: Bool {
-        for r in 0..<puzzle.size {
-            let yes = (0..<puzzle.size).filter { marks[r][$0] == .yes }
-            if yes.count != 1 || yes[0] != puzzle.solution[r] { return false }
-        }
-        return true
-    }
-}
-
-/// One recorded attempt at a daily (or expert) grid. Local-only; defaults + no unique constraints
-/// keep it CloudKit-compatible if sync is ever added.
 @Model
-final class LatticeResult {
-    var id: UUID = UUID()
-    var dateKey: String = ""
-    var puzzleId: Int = 0
-    var solved: Bool = false
-    var seconds: Double = 0
-    var isExpert: Bool = false
-    var date: Date = Date.now
+final class GratEntry {
+    var id: UUID
+    var date: Date
+    var text: String
+    var promptUsed: String?
+    var favorite: Bool
 
-    init(id: UUID = UUID(), dateKey: String = "", puzzleId: Int = 0,
-         solved: Bool = false, seconds: Double = 0, isExpert: Bool = false, date: Date = .now) {
-        self.id = id; self.dateKey = dateKey; self.puzzleId = puzzleId
-        self.solved = solved; self.seconds = seconds; self.isExpert = isExpert; self.date = date
+    init(id: UUID = UUID(), date: Date = Date(), text: String, promptUsed: String? = nil, favorite: Bool = false) {
+        self.id = id
+        self.date = date
+        self.text = text
+        self.promptUsed = promptUsed
+        self.favorite = favorite
+    }
+}
+
+@Model
+final class GratPrompt {
+    var id: UUID
+    var text: String
+    var isPro: Bool
+
+    init(id: UUID = UUID(), text: String, isPro: Bool = false) {
+        self.id = id
+        self.text = text
+        self.isPro = isPro
+    }
+}
+
+// MARK: - AppModel
+
+@MainActor
+final class AppModel: ObservableObject {
+    let container: ModelContainer
+    weak var store: Store?
+
+    @Published private(set) var entries: [GratEntry] = []
+    @Published private(set) var todayEntry: GratEntry? = nil
+    @Published private(set) var streak: Int = 0
+    @Published private(set) var todayPrompt: String = ""
+
+    // Built-in prompt list (seeded once)
+    static let builtInPrompts: [String] = [
+        "What made you smile today?",
+        "Name one person you're thankful for.",
+        "What small comfort are you grateful for?",
+        "What went better than expected today?",
+        "What is something beautiful you noticed?",
+        "What is a simple pleasure in your day?",
+        "Who showed you kindness recently?",
+        "What skill are you grateful to have?",
+        "What ordinary thing do you appreciate?",
+        "What made today unique?",
+        "What challenge helped you grow?",
+        "What food or drink brought you joy?",
+        "What place are you grateful to live near?",
+        "What memory made you feel warm today?",
+        "What opportunity are you thankful for?",
+        "Who supported you recently?",
+        "What made you feel proud today?",
+        "What technology simplified your life?",
+        "What natural thing did you appreciate?",
+        "What are you looking forward to?",
+        "What habit improved your day?",
+        "What did you learn that you're glad to know?",
+        "What conversation energized you?",
+        "What moment of quiet did you enjoy?",
+        "What made your home feel comfortable?",
+        "What act of generosity touched you?",
+        "What creative thing did you appreciate?",
+        "What did your body do well today?",
+        "What problem did you solve today?",
+        "What simple joy is in your life right now?"
+    ]
+
+    init(container: ModelContainer) {
+        self.container = container
+        reload()
+    }
+
+    static func makeContainer() -> ModelContainer {
+        let schema = Schema([GratEntry.self, GratPrompt.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        do {
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try! ModelContainer(for: schema, configurations: [fallback])
+        }
+    }
+
+    func reload() {
+        let ctx = container.mainContext
+        let allEntries = (try? ctx.fetch(FetchDescriptor<GratEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? []
+        entries = allEntries
+
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        todayEntry = allEntries.first { cal.startOfDay(for: $0.date) == today }
+
+        // Compute streak
+        var s = 0
+        var checkDay = today
+        for _ in 0..<365 {
+            if allEntries.contains(where: { cal.startOfDay(for: $0.date) == checkDay }) {
+                s += 1
+                checkDay = cal.date(byAdding: .day, value: -1, to: checkDay)!
+            } else {
+                break
+            }
+        }
+        streak = s
+
+        // Pick today's prompt deterministically from date seed
+        let dayIndex = Int(today.timeIntervalSince1970 / 86400) % Self.builtInPrompts.count
+        todayPrompt = Self.builtInPrompts[dayIndex]
+    }
+
+    func refresh() { reload() }
+
+    func saveEntry(text: String, promptUsed: String?) {
+        let ctx = container.mainContext
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+
+        // Remove existing today entry if any
+        if let existing = todayEntry {
+            ctx.delete(existing)
+        }
+
+        let entry = GratEntry(date: Date(), text: text, promptUsed: promptUsed, favorite: false)
+        ctx.insert(entry)
+        try? ctx.save()
+        reload()
+    }
+
+    func toggleFavorite(_ entry: GratEntry) {
+        entry.favorite.toggle()
+        try? container.mainContext.save()
+        reload()
+    }
+
+    func deleteEntry(_ entry: GratEntry) {
+        container.mainContext.delete(entry)
+        try? container.mainContext.save()
+        reload()
+    }
+
+    func deleteAllData() {
+        let ctx = container.mainContext
+        let allEntries = (try? ctx.fetch(FetchDescriptor<GratEntry>())) ?? []
+        for e in allEntries { ctx.delete(e) }
+        let allPrompts = (try? ctx.fetch(FetchDescriptor<GratPrompt>())) ?? []
+        for p in allPrompts { ctx.delete(p) }
+        try? ctx.save()
+        reload()
+    }
+
+    // Entries visible to free users (last 30)
+    var freeEntries: [GratEntry] {
+        Array(entries.prefix(30))
     }
 }

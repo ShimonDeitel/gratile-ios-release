@@ -18,9 +18,9 @@
   },
   "subscriptionGroups": [
     {
-      "id": "lattice_pro_group",
+      "id": "gratile_pro_group",
       "localizations": [],
-      "name": "Lattice Pro",
+      "name": "Gratile Pro",
       "subscriptions": [
         {
           "adHocOffers": [],
@@ -28,19 +28,19 @@
           "displayPrice": "0.99",
           "familyShareable": false,
           "groupNumber": 1,
-          "internalID": "lattice_pro_monthly_id",
+          "internalID": "gratile_pro_monthly_id",
           "introductoryOffer": null,
           "localizations": [
             {
-              "description": "The full daily logic-grid archive, an expert grid each day, bigger grids, hints and themes.",
-              "displayName": "Lattice Pro",
+              "description": "Unlimited wall, monthly prompts, on-this-day memories",
+              "displayName": "Gratile Pro",
               "locale": "en_US"
             }
           ],
-          "productID": "lattice_pro_monthly",
+          "productID": "gratile_pro_monthly",
           "recurringSubscriptionPeriod": "P1M",
-          "referenceName": "Lattice Pro Monthly",
-          "subscriptionGroupID": "lattice_pro_group",
+          "referenceName": "Gratile Pro Monthly",
+          "subscriptionGroupID": "gratile_pro_group",
           "type": "RecurringSubscription"
         }
       ]
