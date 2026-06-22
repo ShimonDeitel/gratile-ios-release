@@ -126,8 +126,6 @@ final class AppModel: ObservableObject {
 
     func saveEntry(text: String, promptUsed: String?) {
         let ctx = container.mainContext
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
 
         // Remove existing today entry if any
         if let existing = todayEntry {
